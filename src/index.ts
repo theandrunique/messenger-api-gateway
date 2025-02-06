@@ -1,7 +1,7 @@
 import { Socket } from "socket.io";
 import { validateJWT } from "./auth";
-
-const { Server } = require("socket.io");
+import config from "./config";
+import { Server } from "socket.io";
 
 const io = new Server();
 
@@ -29,4 +29,6 @@ io.on("connection", async (socket: Socket) => {
   });
 });
 
-io.listen(3000);
+io.listen(config.PORT, () => {
+  console.log("Server listening on port", config.PORT);
+});
