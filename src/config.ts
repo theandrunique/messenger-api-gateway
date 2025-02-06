@@ -7,8 +7,6 @@ interface Config {
   JWKS_URL: string;
 }
 
-const port = process;
-
 const config: Config = {
   PORT: process.env.PORT ? parseInt(process.env.PORT) : 3000,
   JWKS_URL:

@@ -3,8 +3,13 @@ import { validateJWT } from "./auth";
 import config from "./config";
 import { Server } from "socket.io";
 import logger from "./logging";
+import { createAdapter } from "@socket.io/redis-streams-adapter";
+import { Redis } from "ioredis";
 
-const io = new Server();
+const redisClient = new Redis("127.0.0.1:6379");
+const io = new Server({
+  adapter: createAdapter(redisClient),
+});
 
 io.on("connection", async (socket: Socket) => {
   const accessToken = socket.handshake.query.accessToken as string;
@@ -25,7 +30,7 @@ io.on("connection", async (socket: Socket) => {
     logger.info(`Client disconnected: ${socket.id}`);
   });
 
-  socket.on("message", (message, callback) => {
+  socket.on("message", (message) => {
     logger.info(`Received message: ${JSON.stringify(message)}`);
   });
 
