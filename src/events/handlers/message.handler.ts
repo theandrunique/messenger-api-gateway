@@ -20,10 +20,6 @@ export const handleMessageEvent = async (io: Server, payload: any) => {
         message: message,
       });
     });
-
-    logger.info(
-      `Processed message event ${message.id} for ${recipients.length} users`
-    );
   } catch (err) {
     logger.error("Error processing message event:", err);
   }

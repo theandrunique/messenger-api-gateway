@@ -36,31 +36,30 @@ const processEvents = async (io: Server) => {
       if (!events) continue;
 
       for (const [stream, messages] of events) {
-        for (const [messageId, data] of messages) {
-          const parsedData: Record<string, string> = {};
-          for (let i = 0; i < data.length; i += 2) {
-            parsedData[data[i]] = data[i + 1];
-          }
-
-          try {
-            const eventType = parsedData.eventType as string;
-
-            if (isValidEventType(eventType) && EventHandlers[eventType]) {
-              await EventHandlers[eventType](
-                io,
-                JSON.parse(parsedData.payload)
-              );
-              await redisClient.xack(EVENT_STREAM, GROUP_NAME, messageId);
-              logger.info(
-                `Processed gateway event ${messageId} for ${recipients.length} users`
-              );
-            } else {
-              logger.error(`Unknown event type: ${eventType}`);
+        await Promise.all(
+          messages.map(async ([messageId, data]) => {
+            const parsedData: Record<string, string> = {};
+            for (let i = 0; i < data.length; i += 2) {
+              parsedData[data[i]] = data[i + 1];
             }
-          } catch (err) {
-            logger.error(`Error processing event ${data.eventId}:`, err);
-          }
-        }
+            try {
+              const eventType = parsedData.eventType as string;
+
+              if (isValidEventType(eventType) && EventHandlers[eventType]) {
+                await EventHandlers[eventType](
+                  io,
+                  JSON.parse(parsedData.payload)
+                );
+                await redisClient.xack(EVENT_STREAM, GROUP_NAME, messageId);
+              } else {
+                logger.error(`Unknown event type: ${eventType}`);
+              }
+            } catch (err) {
+              logger.error(`Error processing event ${data.eventId}:`, err);
+            }
+          })
+        );
+        logger.info(`Processed batch of ${messages.length} events`);
       }
     } catch (err) {
       logger.error("Event processing error:", err);
