@@ -1,40 +1,44 @@
-import { Socket } from "socket.io";
-import { validateJWT } from "./auth";
-import config from "./config";
-import { Server } from "socket.io";
-import logger from "./logging";
 import { createAdapter } from "@socket.io/redis-streams-adapter";
-import { Redis } from "ioredis";
+import { Server, Socket } from "socket.io";
+import logger from "./utils/logging";
+import { redisClient } from "./services/redis.service";
+import { authMiddleware } from "./middlewares/auth.middleware";
+import config from "./config";
+import { setupEventConsumers } from "./events";
 
-const redisClient = new Redis("127.0.0.1:6379");
-const io = new Server({
-  adapter: createAdapter(redisClient),
-});
+export const setupSocketHandlers = (io: Server) => {
+  io.on("connection", (socket: Socket) => {
+    const userId = socket.data.userId;
+    logger.info(`Client connected: ${socket.id} (User: ${userId})`);
 
-io.on("connection", async (socket: Socket) => {
-  const accessToken = socket.handshake.query.accessToken as string;
-  if (!accessToken) {
-    logger.info("No access token provided");
-    socket.disconnect(true);
-    return;
-  }
+    socket.join(`user-${userId}`);
 
-  const payload = await validateJWT(accessToken);
-  if (payload === null) {
-    logger.info(`Invalid access token: ${accessToken}`);
-    socket.disconnect(true);
-    return;
-  }
+    socket.on("disconnect", () => {
+      logger.info(`Client disconnected: ${socket.id} (User: ${userId})`);
+    });
 
-  socket.on("disconnect", () => {
-    logger.info(`Client disconnected: ${socket.id}`);
+    socket.on("error", (err) => {
+      logger.error(`Socket error for user ${userId}:`, err);
+    });
+  });
+};
+
+async function initServer() {
+  const io = new Server({
+    adapter: createAdapter(redisClient),
   });
 
-  socket.on("message", (message) => {
-    logger.info(`Received message: ${JSON.stringify(message)}`);
-  });
+  await setupEventConsumers(io);
 
-  logger.info(`Client connected ${socket.id}`);
+  io.use(authMiddleware);
+
+  setupSocketHandlers(io);
+
+  io.listen(config.PORT);
+  logger.info(`Server started on port ${config.PORT}`);
+}
+
+initServer().catch((err) => {
+  logger.error("Failed to start server:", err);
+  process.exit(1);
 });
-
-io.listen(config.PORT);
