@@ -2,8 +2,8 @@ import { Server } from "socket.io";
 import {
   handleMessageCreateEvent,
   handleMessageUpdateEvent,
-} from "./handlers/message.handler";
-import { handleChannelCreateEvent } from "./handlers/channel.handler";
+} from "./handlers/message.handlers";
+import { handleChannelCreateEvent } from "./handlers/channel.handlers";
 
 type EventHandler = (io: Server, data: unknown) => Promise<void>;
 

@@ -38,12 +38,10 @@ const processEvents = async (io: Server) => {
       const parsedEvents = parseRedisEvents(events);
 
       await Promise.all(
-        parsedEvents.map(async ({ messageId, fields }) => {
+        parsedEvents.map(async ({ messageId, eventType, payload }) => {
           try {
-            const eventType = fields.eventType;
-
             if (isValidEventType(eventType) && EventHandlers[eventType]) {
-              await EventHandlers[eventType](io, JSON.parse(fields.payload));
+              await EventHandlers[eventType](io, payload);
               await redisClient.xack(EVENT_STREAM, GROUP_NAME, messageId);
             } else {
               logger.error(`Unknown event type: ${eventType}`);
@@ -69,7 +67,8 @@ function isValidEventType(
 
 type StreamMessage = {
   messageId: string;
-  fields: Record<string, string>;
+  eventType: string;
+  payload: any;
 };
 
 function parseRedisEvents(rawEvents: unknown): StreamMessage[] {
@@ -96,7 +95,18 @@ function parseRedisEvents(rawEvents: unknown): StreamMessage[] {
         fields[data[i]] = data[i + 1];
       }
 
-      return { messageId, fields };
+      const eventType = fields.eventType as string;
+      const payload = fields.payload as string;
+      if (!eventType || !payload) {
+        throw new Error("Missing required event fields: eventType or payload");
+      }
+
+      try {
+        const parsedPayload = JSON.parse(payload);
+        return { messageId, eventType, payload: parsedPayload };
+      } catch (e) {
+        throw new Error(`Invalid JSON payload for message ${messageId}`);
+      }
     });
   });
 }
