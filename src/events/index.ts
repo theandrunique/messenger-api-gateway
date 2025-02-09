@@ -4,15 +4,19 @@ import { EventHandlerMap, EventHandlers } from "./event.types";
 import logger from "../utils/logging";
 import config from "../config";
 
-const EVENT_STREAM = "gateway-events";
-const GROUP_NAME = "socket-consumers";
-
 export const setupEventConsumers = async (io: Server) => {
   try {
     await redisClient
-      .xgroup("CREATE", EVENT_STREAM, GROUP_NAME, "0", "MKSTREAM")
+      .xgroup(
+        "CREATE",
+        config.EVENT_STREAM,
+        config.CONSUMER_GROUP_NAME,
+        "0",
+        "MKSTREAM"
+      )
       .catch(() => logger.info("Consumer group already exists"));
 
+    logger.info("Starting event consumers...");
     processEvents(io);
   } catch (err) {
     logger.error("Failed to setup event consumers:", err);
@@ -24,12 +28,12 @@ const processEvents = async (io: Server) => {
     try {
       const events = await redisClient.xreadgroup(
         "GROUP",
-        GROUP_NAME,
-        "socket-worker",
+        config.CONSUMER_GROUP_NAME,
+        config.CONSUMER_NAME,
         "COUNT",
         config.EVENT_BATCH_SIZE,
         "STREAMS",
-        EVENT_STREAM,
+        config.EVENT_STREAM,
         ">"
       );
 
@@ -42,7 +46,7 @@ const processEvents = async (io: Server) => {
           try {
             if (isValidEventType(eventType) && EventHandlers[eventType]) {
               await EventHandlers[eventType](io, payload);
-              await redisClient.xack(EVENT_STREAM, GROUP_NAME, messageId);
+              await redisClient.xack(config.EVENT_STREAM, config.CONSUMER_GROUP_NAME, messageId);
             } else {
               logger.error(`Unknown event type: ${eventType}`);
             }
