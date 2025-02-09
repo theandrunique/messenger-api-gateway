@@ -9,6 +9,10 @@ import { setupEventConsumers } from "./events";
 export const setupSocketHandlers = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     const userId = socket.data.userId;
+    if (!userId) {
+      throw new Error("Expected 'socket.data.userId' to be set");
+    }
+
     logger.info(`Client connected: ${socket.id} (User: ${userId})`);
 
     socket.join(`user-${userId}`);

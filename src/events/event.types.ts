@@ -1,12 +1,18 @@
 import { Server } from "socket.io";
-import { handleMessageEvent } from "./handlers/message.handler";
+import {
+  handleMessageCreateEvent,
+  handleMessageUpdateEvent,
+} from "./handlers/message.handler";
+import { handleChannelCreateEvent } from "./handlers/channel.handler";
 
-type EventHandler = (io: Server, payload: unknown) => Promise<void>;
+type EventHandler = (io: Server, data: unknown) => Promise<void>;
 
 export interface EventHandlerMap {
   [key: string]: EventHandler;
 }
 
 export const EventHandlers: EventHandlerMap = {
-  MessageCreated: handleMessageEvent,
+  MESSAGE_CREATE: handleMessageCreateEvent,
+  MESSAGE_UPDATE: handleMessageUpdateEvent,
+  CHANNEL_CREATE: handleChannelCreateEvent,
 };

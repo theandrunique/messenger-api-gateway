@@ -35,32 +35,25 @@ const processEvents = async (io: Server) => {
 
       if (!events) continue;
 
-      for (const [stream, messages] of events) {
-        await Promise.all(
-          messages.map(async ([messageId, data]) => {
-            const parsedData: Record<string, string> = {};
-            for (let i = 0; i < data.length; i += 2) {
-              parsedData[data[i]] = data[i + 1];
-            }
-            try {
-              const eventType = parsedData.eventType as string;
+      const parsedEvents = parseRedisEvents(events);
 
-              if (isValidEventType(eventType) && EventHandlers[eventType]) {
-                await EventHandlers[eventType](
-                  io,
-                  JSON.parse(parsedData.payload)
-                );
-                await redisClient.xack(EVENT_STREAM, GROUP_NAME, messageId);
-              } else {
-                logger.error(`Unknown event type: ${eventType}`);
-              }
-            } catch (err) {
-              logger.error(`Error processing event ${data.eventId}:`, err);
+      await Promise.all(
+        parsedEvents.map(async ({ messageId, fields }) => {
+          try {
+            const eventType = fields.eventType;
+
+            if (isValidEventType(eventType) && EventHandlers[eventType]) {
+              await EventHandlers[eventType](io, JSON.parse(fields.payload));
+              await redisClient.xack(EVENT_STREAM, GROUP_NAME, messageId);
+            } else {
+              logger.error(`Unknown event type: ${eventType}`);
             }
-          })
-        );
-        logger.info(`Processed batch of ${messages.length} events`);
-      }
+          } catch (err) {
+            logger.error(`Error processing event ${messageId}:`, err);
+          }
+        })
+      );
+      logger.info(`Processed batch of ${parsedEvents.length} events`);
     } catch (err) {
       logger.error("Event processing error:", err);
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -72,4 +65,38 @@ function isValidEventType(
   eventType: string
 ): eventType is keyof EventHandlerMap & string {
   return eventType in EventHandlers;
+}
+
+type StreamMessage = {
+  messageId: string;
+  fields: Record<string, string>;
+};
+
+function parseRedisEvents(rawEvents: unknown): StreamMessage[] {
+  if (!Array.isArray(rawEvents)) {
+    throw new Error("Invalid Redis response format");
+  }
+
+  return rawEvents.flatMap(([stream, messages]) => {
+    if (!Array.isArray(messages)) {
+      throw new Error(`Invalid message format in stream: ${stream}`);
+    }
+
+    return messages.map(([messageId, data]: [string, string[]]) => {
+      if (
+        typeof messageId !== "string" ||
+        !Array.isArray(data) ||
+        data.length % 2 !== 0
+      ) {
+        throw new Error("Malformed Redis message data");
+      }
+
+      const fields: Record<string, string> = {};
+      for (let i = 0; i < data.length; i += 2) {
+        fields[data[i]] = data[i + 1];
+      }
+
+      return { messageId, fields };
+    });
+  });
 }

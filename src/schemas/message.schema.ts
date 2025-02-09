@@ -17,8 +17,16 @@ const MessageSchema = z.object({
   attachments: z.array(z.unknown()),
 });
 
-export const MessageEventSchema = z.object({
+export const MessageCreateEventSchema = z.object({
   recipients: z.array(z.string()),
-  message: MessageSchema,
-  eventType: z.literal("MessageCreated"),
+  payload: MessageSchema,
+  extra: z.unknown(),
+  eventType: z.literal("MESSAGE_CREATE"),
+});
+
+export const MessageUpdateEventSchema = z.object({
+  recipients: z.array(z.string()),
+  payload: MessageSchema,
+  extra: z.unknown(),
+  eventType: z.literal("MESSAGE_UPDATE"),
 });

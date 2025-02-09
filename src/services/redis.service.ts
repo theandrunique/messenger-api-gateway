@@ -28,6 +28,6 @@ class RedisService {
   }
 }
 
-const redis_service = new RedisService();
+const redisService = new RedisService();
 
-export const redisClient = redis_service.getClient();
+export const redisClient = redisService.getClient();
