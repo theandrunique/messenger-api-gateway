@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch src/index.ts",
+      "type": "node",
+      "request": "launch",
+      "runtimeArgs": ["--require", "ts-node/register"],
+      "args": [
+        "${workspaceFolder}/src/index.ts"
+      ],
+    }
+  ]
+}
