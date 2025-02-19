@@ -4,7 +4,7 @@ import logger from "./utils/logging";
 import { redisClient } from "./services/redis.service";
 import { authMiddleware } from "./middlewares/auth.middleware";
 import config from "./config";
-import { setupEventConsumers } from "./events";
+import { GatewayEventConsumer } from "./events";
 
 export const setupSocketHandlers = (io: Server) => {
   io.on("connection", (socket: Socket) => {
@@ -36,7 +36,8 @@ async function initServer() {
     adapter: createAdapter(redisClient),
   });
 
-  await setupEventConsumers(io);
+  const eventConsumer = new GatewayEventConsumer(io);
+  await eventConsumer.start();
 
   io.use(authMiddleware);
 

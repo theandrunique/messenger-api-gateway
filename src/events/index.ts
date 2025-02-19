@@ -1,116 +1,70 @@
 import { Server } from "socket.io";
-import { redisClient } from "../services/redis.service";
 import { EventHandlerMap, EventHandlers } from "./event.types";
 import logger from "../utils/logging";
-import config from "../config";
+import { GatewayEvent, RedisGatewayStream } from "./helpers";
 
-export const setupEventConsumers = async (io: Server) => {
-  await redisClient
-    .xgroup(
-      "CREATE",
-      config.EVENT_STREAM,
-      config.CONSUMER_GROUP_NAME,
-      "0",
-      "MKSTREAM"
-    )
-    .catch(() => logger.info("Consumer group already exists"));
+export class GatewayEventConsumer {
+  private gatewayStream: RedisGatewayStream;
+  private io: Server;
+  private isRunning = false;
 
-  logger.info("Starting event consumers...");
-  processEvents(io);
-};
+  constructor(io: Server) {
+    this.gatewayStream = new RedisGatewayStream();
+    this.io = io;
+  }
 
-const processEvents = async (io: Server) => {
-  while (true) {
-    try {
-      const events = await redisClient.xreadgroup(
-        "GROUP",
-        config.CONSUMER_GROUP_NAME,
-        config.CONSUMER_NAME,
-        "COUNT",
-        config.EVENT_BATCH_SIZE,
-        "STREAMS",
-        config.EVENT_STREAM,
-        ">"
-      );
+  async start() {
+    this.isRunning = true;
+    logger.info("Starting event consumer...");
+    await this.gatewayStream.createConsumerGroup();
+    this.processEvents();
+  }
 
-      if (!events) continue;
+  async stop() {
+    this.isRunning = false;
+    logger.info("Stopping event consumer...");
+  }
 
-      const parsedEvents = parseRedisEvents(events);
+  private async processEvents() {
+    while (this.isRunning) {
+      try {
+        const events = await this.gatewayStream.fetchEvents();
+        if (events.length === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          continue;
+        }
 
-      await Promise.all(
-        parsedEvents.map(async ({ messageId, eventType, payload }) => {
-          try {
-            if (isValidEventType(eventType) && EventHandlers[eventType]) {
-              await EventHandlers[eventType](io, payload);
-              await redisClient.xack(
-                config.EVENT_STREAM,
-                config.CONSUMER_GROUP_NAME,
-                messageId
-              );
-            } else {
-              logger.error(`Unknown event type: ${eventType}`);
-            }
-          } catch (err) {
-            logger.error(`Error processing event ${messageId}:`, err);
-          }
-        })
-      );
-      logger.info(`Processed batch of ${parsedEvents.length} events`);
-    } catch (err) {
-      logger.error("Event processing error:", err);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+        await Promise.all(events.map((event) => this.processEvent(event)));
+        logger.info(`Processed batch of ${events.length} events`);
+      } catch (e) {
+        logger.error("Error processing gateway events: ", e);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
     }
   }
-};
+
+  private async processEvent(event: GatewayEvent) {
+    const { messageId, eventType, payload } = event;
+    try {
+      if (isValidEventType(eventType)) {
+        await EventHandlers[eventType](this.io, payload);
+        await this.gatewayStream.acknowledgeEvent(messageId);
+      } else {
+        logger.warn(`Unknown event type: ${eventType}`, { messageId });
+        await this.gatewayStream.moveToDeadEventsQueueAndAck(
+          event,
+          `Unknown event type: ${eventType}`
+        );
+      }
+    } catch (err) {
+      await this.gatewayStream.moveToDeadEventsQueueAndAck(event, String(err));
+      logger.warn(`Error processing event ${messageId}. Error: {err}`);
+    }
+  }
+}
 
 function isValidEventType(
   eventType: string
 ): eventType is keyof EventHandlerMap & string {
   return eventType in EventHandlers;
-}
-
-type StreamMessage = {
-  messageId: string;
-  eventType: string;
-  payload: any;
-};
-
-function parseRedisEvents(rawEvents: unknown): StreamMessage[] {
-  if (!Array.isArray(rawEvents)) {
-    throw new Error("Invalid Redis response format");
-  }
-
-  return rawEvents.flatMap(([stream, messages]) => {
-    if (!Array.isArray(messages)) {
-      throw new Error(`Invalid message format in stream: ${stream}`);
-    }
-
-    return messages.map(([messageId, data]: [string, string[]]) => {
-      if (
-        typeof messageId !== "string" ||
-        !Array.isArray(data) ||
-        data.length % 2 !== 0
-      ) {
-        throw new Error("Malformed Redis message data");
-      }
-
-      const fields: Record<string, string> = {};
-      for (let i = 0; i < data.length; i += 2) {
-        fields[data[i]] = data[i + 1];
-      }
-
-      const eventType = fields.eventType as string;
-      const payload = fields.payload as string;
-      if (!eventType || !payload) {
-        throw new Error("Missing required event fields: eventType or payload");
-      }
-
-      try {
-        const parsedPayload = JSON.parse(payload);
-        return { messageId, eventType, payload: parsedPayload };
-      } catch (e) {
-        throw new Error(`Invalid JSON payload for message ${messageId}`);
-      }
-    });
-  });
 }
