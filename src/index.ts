@@ -10,7 +10,9 @@ export const setupSocketHandlers = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     const userId = socket.data.userId;
     if (!userId) {
-      throw new Error("Expected 'socket.data.userId' to be set");
+      throw new Error(
+        "Expected 'socket.data.userId' to be set after 'authMiddleware'"
+      );
     }
 
     logger.info(`Client connected: ${socket.id} (User: ${userId})`);
@@ -28,6 +30,8 @@ export const setupSocketHandlers = (io: Server) => {
 };
 
 async function initServer() {
+  logger.info("Starting server...");
+
   const io = new Server({
     adapter: createAdapter(redisClient),
   });
