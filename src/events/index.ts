@@ -5,22 +5,18 @@ import logger from "../utils/logging";
 import config from "../config";
 
 export const setupEventConsumers = async (io: Server) => {
-  try {
-    await redisClient
-      .xgroup(
-        "CREATE",
-        config.EVENT_STREAM,
-        config.CONSUMER_GROUP_NAME,
-        "0",
-        "MKSTREAM"
-      )
-      .catch(() => logger.info("Consumer group already exists"));
+  await redisClient
+    .xgroup(
+      "CREATE",
+      config.EVENT_STREAM,
+      config.CONSUMER_GROUP_NAME,
+      "0",
+      "MKSTREAM"
+    )
+    .catch(() => logger.info("Consumer group already exists"));
 
-    logger.info("Starting event consumers...");
-    processEvents(io);
-  } catch (err) {
-    logger.error("Failed to setup event consumers:", err);
-  }
+  logger.info("Starting event consumers...");
+  processEvents(io);
 };
 
 const processEvents = async (io: Server) => {
@@ -46,7 +42,11 @@ const processEvents = async (io: Server) => {
           try {
             if (isValidEventType(eventType) && EventHandlers[eventType]) {
               await EventHandlers[eventType](io, payload);
-              await redisClient.xack(config.EVENT_STREAM, config.CONSUMER_GROUP_NAME, messageId);
+              await redisClient.xack(
+                config.EVENT_STREAM,
+                config.CONSUMER_GROUP_NAME,
+                messageId
+              );
             } else {
               logger.error(`Unknown event type: ${eventType}`);
             }

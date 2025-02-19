@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import logger from "../../utils/logging";
 import {
+  MessageAckEventSchema,
   MessageCreateEventSchema,
   MessageUpdateEventSchema,
 } from "../../schemas/message.schema";
@@ -41,5 +42,24 @@ export const handleMessageUpdateEvent = async (io: Server, data: any) => {
       payload: payload,
       extra: extra,
     });
+  });
+};
+
+export const handleMessageAckEvent = async (io: Server, data: any) => {
+  const parseResult = MessageAckEventSchema.safeParse(data);
+
+  if (!parseResult.success) {
+    const error = fromZodError(parseResult.error);
+    logger.error(`Event validation failed: ${error}`);
+    throw new Error(`Event validation failed. Error: ${error}`);
+  }
+
+  const { recipients, channelId, messageId } = parseResult.data;
+
+  recipients.forEach((userId) => {
+    io.to(`user-${userId}`).emit("message:ack", {
+      channelId: channelId,
+      messageId: messageId,
+    });;
   });
 };
