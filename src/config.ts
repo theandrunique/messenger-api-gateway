@@ -20,6 +20,33 @@ const ConfigSchema = z.object({
   CONSUMER_GROUP_NAME: z.string().default("socket-consumers"),
   CONSUMER_NAME: z.string().default(`socket-worker-${os.hostname()}`),
   DEAD_EVENTS_STREAM: z.string().default("gateway-dead-events"),
+
+  // cors
+  CORS_ORIGIN: z.preprocess(
+    (val) => {
+      const value = String(val || "");
+      return value ? value.split(",") : [];
+    },
+    z.array(z.string()).default(["http://localhost:5173"])
+  ),
+    CORS_METHODS: z.preprocess(
+    (val) => {
+      const value = String(val || "");
+      return value ? value.split(",") : [];
+    },
+    z.array(z.string()).default(["GET", "POST"])
+  ),
+  CORS_ALLOWED_HEADERS: z.preprocess(
+    (val) => {
+      const value = String(val || "");
+      return value ? value.split(",") : [];
+    },
+    z.array(z.string()).default(["Authorization"])
+  ),
+  CORS_CREDENTIALS: z.preprocess(
+    (val) => (val === "true"),
+    z.boolean().default(true)
+  ),
 });
 
 const parsedConfig = ConfigSchema.safeParse(process.env);

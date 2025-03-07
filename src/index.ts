@@ -34,6 +34,12 @@ async function initServer() {
 
   const io = new Server({
     adapter: createAdapter(redisClient),
+    cors: {
+      origin: config.CORS_ORIGIN, 
+      methods: config.CORS_METHODS,
+      allowedHeaders: config.CORS_ALLOWED_HEADERS,
+      credentials: config.CORS_CREDENTIALS
+    }
   });
 
   const eventConsumer = new GatewayEventConsumer(io);
