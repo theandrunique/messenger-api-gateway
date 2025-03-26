@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+export const ChannelUpdateEventSchema = z.object({
+  recipients: z.array(z.string()),
+  payload: z.unknown(),
+  eventType: z.literal("CHANNEL_UPDATE"),
+})
+
 export const ChannelCreateEventSchema = z.object({
   recipients: z.array(z.string()),
   payload: z.unknown(),
