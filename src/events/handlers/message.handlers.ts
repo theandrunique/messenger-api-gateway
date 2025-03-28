@@ -54,12 +54,13 @@ export const handleMessageAckEvent = async (io: Server, data: any) => {
     throw new Error(`Event validation failed. Error: ${error}`);
   }
 
-  const { recipients, channelId, messageId } = parseResult.data;
+  const { recipients, channelId, messageId, memberId } = parseResult.data;
 
   recipients.forEach((userId) => {
     io.to(`user-${userId}`).emit("message:ack", {
       channelId: channelId,
       messageId: messageId,
-    });;
+      memberId: memberId,
+    });
   });
 };

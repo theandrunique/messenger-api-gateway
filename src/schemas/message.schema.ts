@@ -18,5 +18,6 @@ export const MessageAckEventSchema = z.object({
   recipients: z.array(z.string()),
   channelId: z.unknown(),
   messageId: z.unknown(),
+  memberId: z.unknown(),
   eventType: z.literal("MESSAGE_ACK"),
 });
