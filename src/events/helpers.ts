@@ -121,8 +121,8 @@ function parseRedisEvent(rawEvent: RedisStreamMessage): GatewayEvent {
     fields[rawEvent[1][i]] = rawEvent[1][i + 1];
   }
 
-  if (!fields.eventType || !fields.payload) {
-    throw new Error("Missing required event fields: eventType or payload");
+  if (!fields.eventType || !fields.payload || !fields.recipients) {
+    throw new Error("Missing required event fields: eventType or payload or recipients");
   }
 
   try {
@@ -130,9 +130,10 @@ function parseRedisEvent(rawEvent: RedisStreamMessage): GatewayEvent {
       messageId,
       eventType: fields.eventType,
       payload: JSON.parse(fields.payload),
+      recipients: JSON.parse(fields.recipients),
     };
   } catch (e) {
-    throw new Error(`Failed to parse payload for event ${messageId}: ${e}`);
+    throw new Error(`Failed to parse payload or recipients for event ${messageId}: ${e}`);
   }
 }
 
@@ -140,6 +141,7 @@ export type GatewayEvent = {
   messageId: string;
   eventType: string;
   payload: any;
+  recipients: string[];
 };
 
 type RedisStreamMessage = [string, string[]];

@@ -1,7 +1,7 @@
 import { Server } from "socket.io";
-import { EventHandlerMap, EventHandlers } from "./event.types";
 import logger from "../utils/logging";
 import { GatewayEvent, RedisGatewayStream } from "./helpers";
+import handleGatewayEvent from "./handler";
 
 export class GatewayEventConsumer {
   private gatewayStream: RedisGatewayStream;
@@ -44,27 +44,14 @@ export class GatewayEventConsumer {
   }
 
   private async processEvent(event: GatewayEvent) {
-    const { messageId, eventType, payload } = event;
     try {
-      if (isValidEventType(eventType)) {
-        await EventHandlers[eventType](this.io, payload);
-        await this.gatewayStream.acknowledgeEvent(messageId);
-      } else {
-        logger.warn(`Unknown event type: ${eventType}`, { messageId });
-        await this.gatewayStream.moveToDeadEventsQueueAndAck(
-          event,
-          `Unknown event type: ${eventType}`
-        );
-      }
+      handleGatewayEvent(this.io, event);
     } catch (err) {
       await this.gatewayStream.moveToDeadEventsQueueAndAck(event, String(err));
-      logger.warn(`Error processing event ${messageId}. Error: {err}`);
+      logger.error(
+        `Error processing event ${event.messageId}(${event.eventType}).`,
+        err
+      );
     }
   }
-}
-
-function isValidEventType(
-  eventType: string
-): eventType is keyof EventHandlerMap & string {
-  return eventType in EventHandlers;
 }
