@@ -5,13 +5,15 @@ import { redisClient } from "./services/redis.service";
 import { authMiddleware } from "./middlewares/auth.middleware";
 import config from "./config";
 import { GatewayEventConsumer } from "./events";
+import { setupOnlineTrackerHandlers } from "./services/online.service";
 
 export const setupSocketHandlers = (io: Server) => {
-  io.on("connection", (socket: Socket) => {
+  io.on("connection", (socket) => {
     const userId = socket.data.userId;
-    if (!userId) {
+    const sessionId = socket.data.sessionId;
+    if (!userId || !sessionId) {
       throw new Error(
-        "Expected 'socket.data.userId' to be set after 'authMiddleware'"
+        "Expected 'socket.data.userId' and 'socket.data.sessionId' to be set after 'authMiddleware'"
       );
     }
 
@@ -19,14 +21,18 @@ export const setupSocketHandlers = (io: Server) => {
 
     socket.join(`user-${userId}`);
 
+    socket.emit("hello", { userId, sessionId });
+
     socket.on("disconnect", () => {
       logger.info(`Client disconnected: ${socket.id} (User: ${userId})`);
     });
 
     socket.on("error", (err) => {
-      logger.error(`Socket error for user ${userId}:`, err);
+      logger.error(`Socket error: ${socket.id} (User: ${userId})`, err);
     });
+
   });
+  setupOnlineTrackerHandlers(io);
 };
 
 async function initServer() {
@@ -35,11 +41,11 @@ async function initServer() {
   const io = new Server({
     adapter: createAdapter(redisClient),
     cors: {
-      origin: config.CORS_ORIGIN, 
+      origin: config.CORS_ORIGIN,
       methods: config.CORS_METHODS,
       allowedHeaders: config.CORS_ALLOWED_HEADERS,
-      credentials: config.CORS_CREDENTIALS
-    }
+      credentials: config.CORS_CREDENTIALS,
+    },
   });
 
   const eventConsumer = new GatewayEventConsumer(io);

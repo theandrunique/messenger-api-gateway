@@ -18,11 +18,16 @@ export const authMiddleware = async (socket: Socket, next: any) => {
   }
 
   const userId = payload.sub as string;
+  const tokenId = payload.jti as string;
   if (!userId) {
     return next(new Error("Authentication error: Invalid payload"));
   }
+  if (!tokenId) {
+    return next(new Error("Authentication error: No token id found"));
+  }
 
   socket.data.userId = userId;
+  socket.data.sessionId = tokenId;
 
   next();
 };
